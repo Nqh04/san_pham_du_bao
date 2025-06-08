@@ -1,257 +1,130 @@
 import streamlit as st
+import joblib
 import pandas as pd
 import numpy as np
-import joblib
-from sklearn.preprocessing import LabelEncoder
 
-# Load the trained model and encoders
-# In a real app, handle potential errors during loading
-try:
-    model = joblib.load('random_forest_model.joblib')
-    le_product_detail = joblib.load('le_product_detail.joblib')
-    # Assuming you also saved feature encoders in feature_encoders_dict.joblib
-    # feature_encoders_dict = joblib.load('feature_encoders_dict.joblib')
-    st.success("Model and encoders loaded successfully!")
-except Exception as e:
-    st.error(f"Error loading model or encoders: {e}")
-    st.info("Please ensure 'random_forest_model.joblib' and 'le_product_detail.joblib' (and potentially feature_encoders_dict.joblib) are in the same directory.")
-    # Exit or handle the error appropriately if loading fails
-    st.stop() # Stop the app if essential files are missing
+# Load the trained multi-class model and encoder
+model = joblib.load('multiclass_logistic_regression_model.joblib')
+encoder = joblib.load('onehot_encoder.joblib')
 
+# Define the selected features used during training for the multi-class model
+selected_features = [
+    'transaction_qty', 'unit_price', 'Total_Bill', 'Age', 'Income',
+    'store_location_Can Tho - Ninh Kieu', 'store_location_Da Nang - Hai Chau',
+    'store_location_Da Nang - Thanh Khe', 'store_location_Hanoi - Ba Dinh',
+    'store_location_Hanoi - Cau Giay', 'store_location_Hanoi - Hoan Kiem',
+    'store_location_Ho Chi Minh City - District 1', 'store_location_Ho Chi Minh City - District 3',
+    'store_location_Ho Chi Minh City - District 7', 'store_location_Ho Chi Minh City - Tan Binh',
+    'store_location_Hue - City Center', 'store_location_Nha Trang - City Center',
+    'product_type_Banh Mi', 'product_type_Cake', 'product_type_Coffee', 'product_type_Cookie', 'product_type_Freeze', 'product_type_Pastry', 'product_type_Tea',
+    'product_detail_Americano', 'product_detail_Bac Xiu', 'product_detail_Banh Bong Lan Trung Muoi', 'product_detail_Banh Chuoi', 'product_detail_Banh Mi Ga Que', 'product_detail_Banh Mi Thit Nuong', 'product_detail_Banh Pate So', 'product_detail_Cappuccino', 'product_detail_Cookie Chocolate', 'product_detail_Cookie Oatmeal', 'product_detail_Espresso', 'product_detail_Freeze Ca Phe Phin Sua', 'product_detail_Freeze Chocolate', 'product_detail_Freeze Tra Xanh', 'product_detail_Latte', 'product_detail_Phin Den Da', 'product_detail_Phin Sua Da', 'product_detail_Tra Dao Cam Sa', 'product_detail_Tra Sen Vang',
+    'Size_L', 'Size_M', 'Size_Regular', 'Size_S', 'Size_Slice',
+    'Gender_Female', 'Gender_Male',
+    'Occupation_Content creator', 'Occupation_Công nhân', 'Occupation_Doanh nhân', 'Occupation_Freelancer', 'Occupation_Giám đốc', 'Occupation_Giảng viên đại học', 'Occupation_Kinh doanh', 'Occupation_Kinh doanh online', 'Occupation_Nghề tự do', 'Occupation_Nhà đầu tư', 'Occupation_Nhân viên part-time', 'Occupation_Nhân viên văn phòng', 'Occupation_Quản lý', 'Occupation_Sinh viên, học sinh', 'Occupation_Thực tập sinh', 'Occupation_Trưởng phòng',
+    'Season_Đông', 'Season_Hè', 'Season_Thu', 'Season_Xuân'
+]
 
-# Define the prediction function (copied from previous steps and adapted)
-# Ensure this function matches the preprocessing and feature engineering done during training
-def predict_product_detail_revised(model, target_encoder, input_features):
-    """
-    Predicts product_detail based on input features using a trained model.
-
-    Args:
-        model: The trained scikit-learn model.
-        target_encoder: The LabelEncoder object for the target variable 'product_detail'.
-        input_features: A dictionary containing input feature values.
-                        Keys should match the original column names used for feature engineering.
-
-
-    Returns:
-        The predicted product_detail as a string, or None if prediction fails.
-    """
-    processed_features = {}
-
-    # --- Feature Engineering and Preprocessing matching training ---
-    # This part needs to replicate the preprocessing steps from the training notebook
-
-    # Handle categorical features (need to use the same encoders as training)
-    # If you saved feature_encoders_dict, load and use it here.
-    # For now, assuming we need to re-encode based on input values if encoders weren't saved for features.
-    # A robust app would save and load all necessary encoders.
-
-    # Example of re-encoding (less robust than loading saved encoders)
-    # This assumes the input categories will match the training categories exactly.
-    # A better approach is to save and load feature_encoders_dict
-    # For demonstration, let's manually handle the encoding based on the features used in the final training step
-    # Referencing the feature_columns list from the last successful training run:
-    # feature_columns = ['Age', 'Income', 'Total_Bill', 'Gender_encoded', 'Occupation_encoded',
-    #                    'Season_encoded', 'product_category_encoded',
-    #                    'product_type_encoded', 'Size_encoded', 'unit_price', 'store_location_encoded',
-    #                    'year', 'month', 'day', 'day_of_week', 'hour']
-
-    # To correctly implement this, you would need to save ALL LabelEncoders used for features
-    # and load them into feature_encoders_dict here.
-    # For now, let's create a placeholder and note this is crucial.
-    # feature_encoders_dict = {} # Load saved feature encoders here!
-
-    # Replicate date/time feature extraction (assuming original date/time strings are in input_features)
-    try:
-        date_obj = pd.to_datetime(input_features.get('transaction_date'))
-        input_features['year'] = date_obj.year
-        input_features['month'] = date_obj.month
-        input_features['day'] = date_obj.day
-        input_features['day_of_week'] = date_obj.dayofweek # Monday=0, Sunday=6
-    except Exception as e:
-        st.warning(f"Could not parse transaction_date: {e}. Date-derived features may be missing.")
-        # Decide how to handle missing derived features - maybe return None or use default values
-        return None # Or handle missing features
+# Get the original categories from the encoder
+original_categories = encoder.categories_
+store_locations = original_categories[0]
+product_categories_original = original_categories[1] # Original product categories
+product_types = original_categories[2]
+product_details = original_categories[3]
+sizes = original_categories[4]
+genders = original_categories[5]
+occupations = original_categories[6]
+seasons = original_categories[7]
 
 
-    try:
-         time_parts = str(input_features.get('transaction_time')).split(':')
-         if len(time_parts) >= 1:
-             input_features['hour'] = int(time_parts[0])
-         else:
-             st.warning(f"Could not parse transaction_time. Hour feature will be missing.")
-             return None # Or handle missing features
-    except Exception as e:
-         st.warning(f"Could not parse transaction_time: {e}. Hour feature will be missing.")
-         return None # Or handle missing features
+# Streamlit app title
+st.title("Dự báo Product Category")
+
+# User input for features
+st.sidebar.header("Nhập thông tin khách hàng")
+
+# Input fields based on selected_features, mapping back to original categories for categorical inputs
+input_data = {}
+
+# Numerical inputs
+input_data['transaction_qty'] = st.sidebar.number_input("Số lượng giao dịch", min_value=1, value=1)
+input_data['unit_price'] = st.sidebar.number_input("Đơn giá", min_value=0, value=30000)
+input_data['Total_Bill'] = st.sidebar.number_input("Tổng hóa đơn", min_value=0, value=100000)
+input_data['Age'] = st.sidebar.number_input("Tuổi", min_value=0, max_value=120, value=30)
+input_data['Income'] = st.sidebar.number_input("Thu nhập", min_value=0, value=5000000)
+
+# Categorical inputs (using original categories)
+selected_season = st.sidebar.selectbox("Mùa", seasons)
+selected_store_location = st.sidebar.selectbox("Địa điểm cửa hàng", store_locations)
+selected_product_type = st.sidebar.selectbox("Loại sản phẩm", product_types)
+selected_product_detail = st.sidebar.selectbox("Chi tiết sản phẩm", product_details)
+selected_size = st.sidebar.selectbox("Kích cỡ", sizes)
+selected_gender = st.sidebar.selectbox("Giới tính", genders)
+selected_occupation = st.sidebar.selectbox("Nghề nghiệp", occupations)
 
 
-    # Manual encoding for demonstration - replace with loading saved encoders
-    # This is error-prone if input categories are not seen during training
-    # You need to save and load 'feature_encoders_dict' from your training notebook
-    # For now, let's assume the encoders are available globally if run in the same environment
-    # In a standalone app, this is NOT the way to do it.
-    try:
-        input_features['Gender_encoded'] = df['Gender'].unique().tolist().index(input_features['Gender']) # Example - replace with proper encoder
-        input_features['Occupation_encoded'] = df['Occupation'].unique().tolist().index(input_features['Occupation']) # Example
-        input_features['Season_encoded'] = df['Season'].unique().tolist().index(input_features['Season']) # Example
-        input_features['product_category_encoded'] = df['product_category'].unique().tolist().index(input_features['product_category']) # Example
-        input_features['product_type_encoded'] = df['product_type'].unique().tolist().index(input_features['product_type']) # Example
-        input_features['Size_encoded'] = df['Size'].unique().tolist().index(input_features['Size']) # Example
-        input_features['store_location_encoded'] = df['store_location'].unique().tolist().index(input_features['store_location']) # Example
-        # Also need to handle store_id if it was used as a feature and is numerical
-        # input_features['store_id'] = int(input_features['store_id']) # Ensure numerical
-        input_features['unit_price'] = float(input_features['unit_price'])
-        input_features['Total_Bill'] = float(input_features['Total_Bill'])
-        input_features['Age'] = int(input_features['Age'])
-        input_features['Income'] = float(input_features['Income'])
+# Button to trigger prediction
+if st.sidebar.button("Dự báo"):
+    # Create a DataFrame from the input data
+    input_df = pd.DataFrame([input_data])
+
+    # Apply one-hot encoding to the categorical inputs
+    # Need to create a dummy DataFrame with all possible columns from the original encoding
+    dummy_data = pd.DataFrame(0, index=[0], columns=encoder.get_feature_names_out(
+        ['store_location', 'product_category', 'product_type', 'product_detail', 'Size', 'Gender', 'Occupation', 'Season']
+    ))
+
+    # Fill in the values for the selected categories in the dummy DataFrame
+    if f'Season_{selected_season}' in dummy_data.columns:
+        dummy_data[f'Season_{selected_season}'] = 1
+    if f'store_location_{selected_store_location}' in dummy_data.columns:
+        dummy_data[f'store_location_{selected_store_location}'] = 1
+    if f'product_type_{selected_product_type}' in dummy_data.columns:
+        dummy_data[f'product_type_{selected_product_type}'] = 1
+    if f'product_detail_{selected_product_detail}' in dummy_data.columns:
+        dummy_data[f'product_detail_{selected_product_detail}'] = 1
+    if f'Size_{selected_size}' in dummy_data.columns:
+        dummy_data[f'Size_{selected_size}'] = 1
+    if f'Gender_{selected_gender}' in dummy_data.columns:
+        dummy_data[f'Gender_{selected_gender}'] = 1
+    if f'Occupation_{selected_occupation}' in dummy_data.columns:
+        dummy_data[f'Occupation_{selected_occupation}'] = 1
 
 
-    except Exception as e:
-         st.error(f"Error during manual feature encoding: {e}. Please check input values.")
-         st.info("Note: For a robust app, save and load feature encoders from training.")
-         return None
+    # Select only the encoded columns that are in selected_features
+    encoded_input_features = dummy_data[
+        [col for col in dummy_data.columns if col in selected_features and col not in input_data.keys()]
+    ]
 
+    # Concatenate numerical and encoded categorical features
+    final_input_df = pd.concat([input_df, encoded_input_features], axis=1)
 
-    # Create a dictionary with all model feature names, mapping to values from input_features
-    # This list of feature names MUST match the exact list and order used during training
-    # Get the feature names from the trained model if possible, or save them during training
-    # Assuming the feature names from the last training run are available (replace with loading saved list)
-    # feature_columns = ['Age', 'Income', 'Total_Bill', 'Gender_encoded', 'Occupation_encoded',
-    #                    'Season_encoded', 'product_category_encoded',
-    #                    'product_type_encoded', 'Size_encoded', 'unit_price', 'store_location_encoded',
-    #                    'year', 'month', 'day', 'day_of_week', 'hour']
-    # For a robust app, save and load the exact list of model feature names!
-    # For now, let's assume the global 'X.columns' from the last successful run is available
-    # In a standalone app, save X.columns during training and load it here.
-    model_feature_names = X.columns.tolist() # Replace with loading saved list
-
-    input_df_data = {}
-    for feature_name in model_feature_names:
-         if feature_name in input_features:
-              input_df_data[feature_name] = input_features[feature_name]
-         else:
-              st.error(f"Error: Feature '{feature_name}' expected by model is missing after processing input.")
-              return None # Indicate failure
-
-
-    # Convert the dictionary to a DataFrame, ensuring correct column order
-    # The order of columns in the DataFrame must match the order used during training
-    ordered_values = [input_df_data.get(col) for col in model_feature_names]
-    input_df = pd.DataFrame([ordered_values], columns=model_feature_names)
-
-    # Ensure data types are correct (matching training data types is ideal)
-    # Attempt to convert numerical columns to appropriate types
-    # This list of numerical/derived features needs to match the training data
-    numerical_derived_cols = ['Age', 'Income', 'Total_Bill', 'unit_price',
-                              'year', 'month', 'day', 'day_of_week', 'hour'] # Add other numerical/derived features used
-    # Add encoded categorical features to the list to ensure they are treated numerically by the model
-    encoded_cols = [col for col in model_feature_names if col.endswith('_encoded')]
-    numerical_derived_cols.extend(encoded_cols)
-
-    for col in input_df.columns:
-        if col in numerical_derived_cols:
-            try:
-                input_df[col] = pd.to_numeric(input_df[col])
-            except ValueError as e:
-                st.warning(f"Could not convert column '{col}' to numeric: {e}. Data type mismatch might occur.")
-        # Handle 'store_id' if used - ensure it's numeric
-        if col == 'store_id':
-             try:
-                 input_df[col] = pd.to_numeric(input_df[col])
-             except ValueError as e:
-                  st.warning(f"Could not convert column '{col}' to numeric: {e}. Data type mismatch might occur.")
-
+    # Ensure the columns in the final_input_df match the columns in X_train
+    # Add missing columns with a value of 0
+    missing_cols = set(selected_features) - set(final_input_df.columns)
+    for c in missing_cols:
+        final_input_df[c] = 0
+    # Ensure the order of columns is the same as X_train
+    final_input_df = final_input_df[selected_features]
 
     # Make prediction
-    if input_df.isnull().any().any():
-         st.error("Error: Input DataFrame contains missing values after processing. Cannot make prediction.")
-         st.dataframe(input_df) # Show the problematic input df
-         return None
+    prediction_proba = model.predict_proba(final_input_df)
 
-    try:
-        prediction_encoded = model.predict(input_df)[0]
-    except Exception as e:
-        st.error(f"Error during model prediction: {e}")
-        st.dataframe(input_df) # Show the input df that caused prediction error
-        return None
-
-    # Inverse transform the prediction
-    try:
-        predicted_product_detail = target_encoder.inverse_transform([prediction_encoded])[0]
-        return predicted_product_detail
-    except Exception as e:
-        st.error(f"Error during inverse transformation: {e}")
-        return None
+    # Get the class labels (original product categories from the encoder)
+    class_labels = model.classes_ # These are integer labels (0, 1, 2, 3, 4)
+    product_category_mapping = {i: category for i, category in enumerate(product_categories_original)}
 
 
-# --- Streamlit App UI ---
+    # Find the predicted class with the highest probability
+    predicted_class_index = np.argmax(prediction_proba)
+    predicted_class_label_int = class_labels[predicted_class_index] # Get the integer label
 
-st.title('Product Detail Prediction App')
-st.write('Enter the transaction details to predict the product detail.')
+    # Map the integer label back to the original product category name
+    predicted_category = product_category_mapping.get(predicted_class_label_int, "Unknown Category")
 
-# Collect user input for each feature used by the model
-# Refer to the list of features used in the final training run (X.columns)
-# You need input fields for ALL features in X.columns except the derived ones (year, month, day, etc.)
-# For derived features, you need input for the original columns they were derived from (transaction_date, transaction_time)
-
-st.sidebar.header('Input Features')
-
-# List of original columns from which features were derived or used directly
-# This list should match the columns used as input in the training notebook
-# Based on the last training run using all features:
-# Original columns needed for input:
-# 'Age', 'Income', 'Total_Bill', 'Gender', 'Occupation', 'Season',
-# 'product_category', 'product_type', 'Size', 'unit_price', 'store_location',
-# 'transaction_date', 'transaction_time' (for deriving year, month, day, hour, day_of_week)
-# 'store_id' (if used as a direct feature)
-
-input_features = {}
-
-# Numerical Features (original)
-numerical_cols_input = ['Age', 'Income', 'Total_Bill', 'unit_price']
-for col in numerical_cols_input:
-     # Add input widgets for numerical features
-     # You might want to set min/max values based on your training data
-     input_features[col] = st.sidebar.number_input(f'{col}', value=0.0) # Adjust default value and step as needed
-
-# Categorical Features (original strings)
-categorical_cols_input = ['Gender', 'Occupation', 'Season', 'product_category', 'product_type', 'Size', 'store_location']
-# For categorical features, it's best to provide a selectbox with the categories seen during training
-# If you saved feature_encoders_dict, you can get the classes from there.
-# For now, let's use text input as a placeholder, but selectbox is better.
-# In a real app, load the categories from saved encoders or a list saved during training.
-# For demonstration, let's use dummy options. Replace with actual categories.
-dummy_options = ['Category1', 'Category2', 'Category3'] # Replace with actual categories loaded from training
-
-for col in categorical_cols_input:
-     # In a real app, load actual options from saved encoders or a list
-     # options = feature_encoders_dict[col].classes_.tolist() if col in feature_encoders_dict else dummy_options
-     input_features[col] = st.sidebar.text_input(f'{col}', 'Enter category') # Replace with st.selectbox using actual options
-
-# Date and Time Inputs (original strings for derivation)
-input_features['transaction_date'] = st.sidebar.text_input('Transaction Date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)', '2023-01-01')
-input_features['transaction_time'] = st.sidebar.text_input('Transaction Time (HH:MM:SS or HH:MM)', '12:00:00')
-
-# Handle 'store_id' if it was used as a direct feature (numerical)
-# If 'store_id' was in the final X.columns and was numerical, add an input for it.
-# Check if 'store_id' is in the list of features used by the model (model_feature_names)
-# model_feature_names = X.columns.tolist() # Load this list from training!
-# if 'store_id' in model_feature_names:
-#     input_features['store_id'] = st.sidebar.number_input('store_id', min_value=0, step=1, value=1) # Adjust min/default/max
+    confidence = prediction_proba[0, predicted_class_index]
 
 
-# Prediction button
-if st.button('Predict Product Detail'):
-    # Ensure model and le_product_detail were loaded successfully
-    if 'model' in globals() and 'le_product_detail' in globals():
-        # Gather inputs into the input_features dictionary (already done above)
-        # Call the prediction function
-        predicted_detail = predict_product_detail_revised(model, le_product_detail, input_features)
-
-        if predicted_detail:
-            st.subheader('Prediction')
-            st.success(f'Predicted Product Detail: {predicted_detail}')
-        else:
-            st.error('Prediction failed. Please check the input values and console for errors.')
-    else:
-        st.error("Model or encoders not loaded. Please check the file paths.")
+    # Display the prediction
+    st.subheader("Kết quả dự báo:")
+    st.write(f"Loại sản phẩm dự báo: {predicted_category}")
+    st.write(f"Độ tin cậy: {confidence:.2f}")
